@@ -1,5 +1,8 @@
-./lib/Object/Trampoline.pm
-./t/01.t
-./Makefile.PL
-./MANIFEST
+lib/Object/Trampoline.pm
+t/01.t
+t/02.t
+Makefile.PL
+MANIFEST
+Changes
+README
 META.yml                                 Module meta-data (added by MakeMaker)

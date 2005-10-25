@@ -7,27 +7,36 @@ package Object::Trampoline;
 
 use strict;
 
+our $VERSION = "0.02";
+
 use Carp;
 
 our $AUTOLOAD = '';
 
 AUTOLOAD
 {
+    # this class is meaningless, since the object
+    # will always be blessed into O::T::Bounce
+    # anyway. the call that got us here is useful
+    # since it is the destination class' const.
+    #
+    # $sub is syntatic sugar but is inexpensive
+    # enough to construct.
+
     my ( $ignore, $class, @argz ) = @_;
 
     my $name = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    croak "Bogus constructor call: '$class' cannot '$name'"
-    unless $class->can( $name );
+    my $sub = sub { $class->$name( @argz ) };
 
-    bless 
-    sub { $class->$name( @argz ) }, 
-    'Object::Trampoline::Bounce'
+    bless $sub, 'Object::Trampoline::Bounce'
 }
 
 package Object::Trampoline::Bounce;
 
 use strict;
+
+*VERSION = \$Object::Trampoline::VERSION;
 
 use Carp;
 
@@ -37,7 +46,7 @@ AUTOLOAD
 {
     # replace the trampoline argument with the real
     # thing by calling its constructor -- call by 
-    # reference is a Bery Good Thing.
+    # reference is a Very Good Thing.
 
     $_[0] = $_[0]->();
 
@@ -93,7 +102,6 @@ is actually dispatched.
     $handle->do_something( @argz );
 
     # at this point ref $handle eq $class
-
 
 =head1 DESCRIPTION
 
@@ -180,6 +188,3 @@ is really used.
 =head1 AUTHOR
 
 Steven Lembark <lembark@wrkhors.com>
-
-after which the first DBI call will convert $dbh from a 
-Trampoline to a DBI handle.
