@@ -80,20 +80,20 @@ of handler classes.
 =head1 SYNOPSIS
 
     # the real class name is added to the normal constructor
-    # and 'Object::Trampoline' used instead. in this case
-    # the required object is in Expensive::Class and
-    # has a constructor of "frobnicate".
+    # and 'Object::Trampoline' used instead. the destination
+    # class' constructor is called when object is actually 
+    # used for something.
 
-    my $dbh = Object::Trampoline->connect( 'DBI', @args );
-
-    # after that just use the object as-is and it'll
-    # transform itself into whatever you asked for when
-    # the first real method call is made using it.
+    my $dbh = Object::Trampoline->connect( 'DBI', $dsn, $user, $pass, $conf );
 
     my $sth = $dbh->prepare( 'select foo from bar' );
 
-    # or specify the package and args from
-    # a config file or via inherited data.
+
+    # or specify the package and args from a config file
+    # or via inherited data.
+    #
+    # the constructor lives in the destination class
+    # and has nothing to do with Object::Trampoline.
 
     my %config = Config->read( $config_file_path );
 
@@ -102,11 +102,11 @@ of handler classes.
 
     my $handle = Object::Trampoline->$const( $class, $argz );
 
-    # at this point ref $handle is 'Object::Trampoline::Bounce'
+    # at this point ref $handle is 'Object::Trampoline::Bounce'.
 
-    $handle->frobnicate( @argz );
+    $handle->frobnicate( @stuff );
 
-    # at this point ref $handle is $class
+    # at this point ref $handle is $class 
 
 =head1 DESCRIPTION
 
@@ -132,21 +132,21 @@ Object::Trampoline uses whatever constructor the destination
 class calls (e.g., 'connect' for DBI) with the destination class
 is passed as the first argument.
 
-For example:
+For example the normal DBI construcion:
 
-    my $dbh = DBI->connect( 'dbi:Foo:', $user, $pass, $conf );
+    my $dbh = DBI->connect( $dsn, $user, $pass, $conf );
 
-becomes
+becomes:
 
-    my $dbh = Object::Trampoline->connect( 'DBI', 'dbi:Foo:', $user, $pass, $conf );
+    my $dbh = Object::Trampoline->connect( 'DBI', $dsn, $user, $pass, $conf );
 
 eventually follwed by some use of the $dbh:
 
-    # at this point $dbh is an Object::Trampline
+    # at this point ref $dbh is "Object::Trampline::Bounce"
 
     my $sth = $dbh->prepare( 'select foo from bar' );
 
-    # at this point $dbh is an DBI::db
+    # at this point ref $dbh is "DBI::db"
 
 This can be handy for error or other special event handlers
 they are not always used -- especially if they have to read
@@ -162,10 +162,11 @@ classes share a constructor name then the first argument
 to Object::Trampoline can be determined at runtime:
 
     my $mailclass = $cmdline->{ mailer } || 'SMTP::Simple';
+    my $mailconst = $cmdline->{ constuctor } || 'constructify';
 
     ...
 
-    my $mailer = Object::Trampoline->construct( $mailclass, @const_argz );
+    my $mailer = Object::Trampoline->$mailconst( $mailclass, @blah );
 
     ...
 
@@ -173,12 +174,14 @@ to Object::Trampoline can be determined at runtime:
 
     $mailer->send( %message );
 
-This can be handy when the constructor arguments themselvese
+This is useful when the constructor arguments themselvese
 are expensive to arrive at but the handler object must be 
-defined in advance. This allows $mailer to be defined as
-something even if the constructor arguments are not 
-available (or the construced class require-ed) yet.
+defined in advance. This allows $mailer to be defined 
+even if the constructor arguments are not available (or
+the construced class require-ed) yet.
 
+Note that $mailconst has nothing to do with Object::Trampoline,
+but must be accessble to a $mailclass object.
 
 =head1 KNOWN BUGS
 
@@ -192,6 +195,13 @@ delay the side effects. Net result is that the side effects
 should be moved into your import where feasable or you just
 have to wait for the side effects to show up when the object
 is really used.
+
+=item 
+
+Also not really a bug, but it is the caller's responsability
+to actually "use" or "require" the destination class prior
+to actually constructing the object.
+
 
 =back
 
