@@ -1,4 +1,12 @@
 
+Tue Nov  1 14:08:06 EST 2005
+
+- Modify Bounce's AUTOLOAD to eval the construction rather
+  than croak if it fails. This handles AUTOLOAD-ed constructors
+  (which $class->can( $name ) fails on).
+
+- POD
+
 Tue Oct 25 10:34:38 EDT 2005
 
 POD, README.

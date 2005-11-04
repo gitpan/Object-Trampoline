@@ -7,7 +7,7 @@ package Object::Trampoline;
 
 use strict;
 
-our $VERSION = "0.02";
+our $VERSION = "0.03";
 
 use Carp;
 
@@ -54,8 +54,8 @@ AUTOLOAD
 
     my $name = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    my $sub = $class->can( $name )
-    or croak "Bogus method call: '$class' cannot '$name'";
+    my $sub = eval { $class->can( $name ) }
+    or croak "Bogus method call: '$class' cannot '$name': $@";
 
     goto &$sub
 }
