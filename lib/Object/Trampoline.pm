@@ -47,6 +47,12 @@ AUTOLOAD
     # replace the trampoline argument with the real
     # thing by calling its constructor -- call by 
     # reference is a Very Good Thing.
+    #
+    # after that it can be shifted off and used to 
+    # access the method. note that this is necessary
+    # in order to allow for classes which implement
+    # their methods via AUTOLOAD (which will defeat
+    # using $obj->can( $name )).
 
     $_[0] = $_[0]->();
 
@@ -54,10 +60,26 @@ AUTOLOAD
 
     my $name = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    my $sub = eval { $class->can( $name ) }
-    or croak "Bogus method call: '$class' cannot '$name': $@";
+    # note that it's up to the caller to deal
+    # with any exceptions that come out of 
+    # calling the method.
 
-    goto &$sub
+    if( my $sub = $_[0]->can( $name ) )
+    {
+        # more effecient way to get there if the 
+        # sub has a real name...
+
+        goto &$sub
+    }
+    else
+    {
+        # ... otherwise go for it by name and let
+        # Perl resolve where the thing goes.
+
+        my $obj = shift;
+
+        $obj->$name( @_ )
+    }
 }
 
 # stub destroy is necessary to dodge AUTOLOAD for
