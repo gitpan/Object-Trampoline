@@ -1,11 +1,26 @@
+Mon Nov 21 12:55:16 EST 2005
+
+- Pod, debugging use.
+
+Fri Nov 18 12:53:41 EST 2005
+
+- POD, example of handle catalog module, notes.
+
+Tue Nov  8 14:26:53 EST 2005
+
+- Typos in POD, comments.
+
+- Added comments to 02.t
+
 
 Tue Nov  1 14:08:06 EST 2005
 
 - Modify Bounce's AUTOLOAD to eval the construction rather
   than croak if it fails. This handles AUTOLOAD-ed constructors
-  (which $class->can( $name ) fails on).
+  (which $class->can( $name ) fails on). If you're really
+  perverted you can now even use O::T to generate objects of
+  type O::T...
 
-- POD
 
 Tue Oct 25 10:34:38 EDT 2005
 
