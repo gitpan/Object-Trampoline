@@ -7,7 +7,7 @@ package Object::Trampoline;
 
 use strict;
 
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 
 use Carp;
 
