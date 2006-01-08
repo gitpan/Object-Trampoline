@@ -3,7 +3,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile
 (
 	NAME            => 'Object::Trampoline',
-	VERSION         => '0.15',
+	VERSION         => '0.13',
 	ABSTRACT		=> <<'TEXT',
 Delay construction of objects until their methods are 
 actually called. The destination objects's constructor
