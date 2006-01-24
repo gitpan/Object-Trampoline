@@ -3,16 +3,12 @@ use ExtUtils::MakeMaker;
 WriteMakefile
 (
 	NAME            => 'Object::Trampoline',
-	VERSION         => '0.99',
+	VERSION         => '1.01',
 	ABSTRACT		=> <<'TEXT',
 Delay construction of objects until their methods are 
-actually called. The destination objects's constructor
-is used, with Object::Trampoline as the class and an
-additinal leading argument of the destination class.
-This helps average startup loads and can also 
-simplify runtime class handling since the class is 
-passed in as an argument.
-
+actually called with minimal source code interference.
+Optionally use-es the constructing class in the block
+where the construcor is called.
 TEXT
 
 	PREREQ_PM =>

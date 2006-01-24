@@ -7,11 +7,38 @@ package Object::Trampoline;
 
 use strict;
 
-our $VERSION = "0.05";
+our $VERSION = "1.01";
 
 use Carp;
 
 our $AUTOLOAD = '';
+
+########################################################################
+# package variables
+########################################################################
+
+my $use_class = 0;
+
+########################################################################
+# import passes in the switch as to whether the class is use-ed
+# or not.
+#
+# note that the flag is universal: there is no good way to 
+# base it on the caller since there is noguarantee that the
+# eventual calling class will match the one seen here.
+
+sub import
+{
+    # discard the class.
+
+    shift;
+
+    my %argz = map { $_ => 1 } @_;
+
+    $use_class = $argz{ use_class } || 0;
+
+    0
+}
 
 ########################################################################
 # the only purpose for this class is having an autoload
@@ -41,7 +68,13 @@ AUTOLOAD
 
     my $name = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    my $sub = sub { $class->$name( @argz ) };
+    my $sub
+    = sub
+    {
+        eval "use $class" if $use_class;
+        
+        $class->$name( @argz )
+    };
 
     bless $sub, 'Object::Trampoline::Bounce'
 }
@@ -61,6 +94,12 @@ AUTOLOAD
     # replace the trampoline argument with the real
     # thing by calling its constructor -- call by 
     # reference is a Very Good Thing.
+    #
+    # after that it can be shifted off and used to 
+    # access the method. note that this is necessary
+    # in order to allow for classes which implement
+    # their methods via AUTOLOAD (which will defeat
+    # using $obj->can( $name )).
 
     $_[0] = $_[0]->();
 
@@ -68,25 +107,25 @@ AUTOLOAD
 
     my $name = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    # if the class implements te method directly
-    # then goto is more effecient; otherwise use
-    # the symbol table to dispatch it -- which 
-    # will end up back here on the way through
-    # the first time the method is called.
+    # note that it's up to the caller to deal
+    # with any exceptions that come out of 
+    # calling the method.
 
-    if( my $sub = eval { $class->can( $name ) } )
+    if( my $sub = $_[0]->can( $name ) )
     {
+        # more effecient way to get there if the 
+        # sub has a real name...
+
         goto &$sub
     }
     else
     {
+        # ... otherwise go for it by name and let
+        # Perl resolve where the thing goes.
+
         my $obj = shift;
 
-        $obj->$name( @_ );
-
-        # you'll end up here afater the call if
-        # you're in the debugger stepping into
-        # things...
+        $obj->$name( @_ )
     }
 }
 
@@ -192,7 +231,7 @@ classes share a constructor name then the first argument
 to Object::Trampoline can be determined at runtime:
 
     my $mailclass = $cmdline->{ mailer } || 'SMTP::Simple';
-    my $mailconst = $cmdline->{ constuctor } || 'constructify';
+    my $mailconst = $cmdline->{ constructor } || 'constructify';
 
     ...
 
@@ -213,6 +252,128 @@ the construced class require-ed) yet.
 Note that $mailconst has nothing to do with Object::Trampoline,
 but must be accessble to a $mailclass object.
 
+=head2 Handle Catalogs
+
+There are times when centeralizing the construction of a
+few standard handles into a single module seems helpful:
+all of the configuration issues can be pushed into a single
+place and anyone who uses the module can get access to some
+set of standard resources. The obvious downside to this is
+having to construct all of the objects.
+
+Trampoline objects overcome this by not constructing anything
+[expensive] until it is really kneaded. Thus, a single 
+"channel catalog" can be pushed into a single module (or
+small set of them). 
+
+A hard-coded catalog might start out as:
+    
+    
+    package Our::Channel::Catalog;
+
+    use Our::Cmdline::Handler;
+
+    my %defaultz =
+    (
+        test_host => 'testify.mysubnet',
+        test_user => 'ttocs',
+        test_pass => 'regit',
+        test_data => 'foo',
+
+        ...
+    );
+
+    my $cmdline = Our::Cmdline::Handler->construct( %defaultz );
+
+    ...
+
+    my $handlz = 
+    {
+        test_db =>
+        Object::Catalog->connect
+        (
+            DBI =>
+            (
+                'dbi:mysql:hostname=$cmdline->{test_host};database=$cmdline->{test_data}',
+                $cmdline->{user},
+                $cmdline->{pass},
+                $db_config,
+            ),
+        ),
+
+        prod_db =>
+        Object::Catalog->connect
+        (
+            DBI =>
+            (
+                'dbi:mysql:hostname=$cmdline->{test_host};database=$cmdline->{test_data}',
+                $cmdline->{user},
+                $cmdline->{pass},
+                $db_config,
+            ),
+        ),
+
+        test_chat =>
+        Object::Catalog->connect
+        (
+            'Foo::Bar::Chatter' =>
+            (
+                Host => $cmdline->{chat_host},
+                User => $cmdline->{chat_user},
+                Pass => $cmdline->{chat_pass},
+                Port => $cmdline->{chat_port},
+            ),
+        ),
+
+        test_ldap =>
+        ...
+
+    };
+
+    sub import
+    {
+        use Symbol;
+
+        my $caller = caller;
+
+        my $ref = qualify_to_ref 'handlz', $caller;
+
+        *$ref = $handlz;
+    }
+
+
+At this point anyonen can use Our::Channel::Catalog
+and have immeidate access to the standard handles
+(which have their default values and list pushed into
+the revision control system).
+
+A more realistic use of this puts the construction
+parameters into, say, LDAP (e.g., RH Directory) for
+shared use. The module can then isolate all the 
+configuration issues into one place. 
+
+Combined with FindBin::libs and NEXT::init a group
+can inherit the necessary channels into a local 
+catalog that varies by project or module. One way
+to handle this is a collection of default channel
+modules that are collected together via use base 
+and NEXT::init into project-specific blocks of 
+handles. This gives projects the flexability to 
+generate a stock set of available handles without
+the overhead of fully instantiating them all for 
+each piece of code that uses any of them.
+
+=head2 Debugging with restricted resources.
+
+There are times when objects must bind ports, access
+unique-login services, or otherwise compete from single-
+use resources. Trampoline objects can help here: by 
+delaying the resource use until something is actually
+done with the object they allow debugging of startup 
+issues. Obviously at some point there may be a resource
+collision, but at least this delays things until the
+last possible time.
+
 =head1 KNOWN BUGS
 
 =over 4
@@ -222,7 +383,7 @@ but must be accessble to a $mailclass object.
 Not a bug, really, but if your constructor has side effects
 (e.g., opening log files) then delaying the construction will
 delay the side effects. Net result is that the side effects
-should be moved into your import where feasable or you just
+may have to migrate into the import where feasable or you just
 have to wait for the side effects to show up when the object
 is really used.
 
@@ -230,22 +391,19 @@ is really used.
 
 Also not really a bug, but it is the caller's responsability
 to actually "use" or "require" the destination class prior
-to actually constructing the object.
+to actually constructing the object. The simple cases could
+be handled with a string eval, but then there isn't a good
+way to determine if a require or use is the proper choice.
+In the interest of simplicity I've left that to the caller.
 
-=item
+=over 4
 
-Another not-really-a-bug: if a trampoline object 
-is initially shared via the symbol table then 
-the $_[0] trick used here will create multiple 
-instances of the object. In some cases this is
-exactly what is required; in others (say an IRC
-connection object that joins a chat) the multiple
-objects instantiated will cause problems.
+One way around this would be passing in a closure as the 
+first argument instead of the class. This could be executed
+as-is to get the object. If anyone has a strong opinion on
+this please warn me.
 
-At the moment I'm trying to find a graceful way 
-of replacing the object contents without knowing
-the base data type, which may lead me into the 
-dungeons of XS...  suggeions welcome :-)
+=back
 
 =back
 

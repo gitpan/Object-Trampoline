@@ -1,22 +1,46 @@
+Tue Jan 24 18:00:50 EST 2006
 
-Sat Jan  7 23:08:44 EST 2006
+- Add add'l argument for using the construcor class 
+  ('use_class').
 
-- Replace croak on $class->can( $name ) with a branch
-  that attempts to dispatch via $obj->$name( @_ ). This
-  accomodates plugins, AUTOLOAD's, etc, that might
-  spoof the "can" test.
+- Update pod to reflect add'l argument.
 
-- Pod noting a nasty case of non-sharing in cases where
-  the object is installed into multiple modules via the
-  symbol table.
+- Still need to add tests for this; but it at least
+  didn't break anything...
+
+Mon Nov 21 17:51:06 EST 2005
+
+- So far so good, up the thing to 1.00, add some 
+  more POD::::.
+
+Mon Nov 21 12:55:16 EST 2005
+
+- Replace single $obj->can with if-block that first
+  attempts to get a subref then uses $obj->$name in
+  order to handle classes whose first non-constructor
+  method is an AUTOLOAD.
+
+- Pod, debugging use.
+
+Fri Nov 18 12:53:41 EST 2005
+
+- POD, example of handle catalog module, notes.
+
+Tue Nov  8 14:26:53 EST 2005
+
+- Typos in POD, comments.
+
+- Added comments to 02.t
+
 
 Tue Nov  1 14:08:06 EST 2005
 
 - Modify Bounce's AUTOLOAD to eval the construction rather
   than croak if it fails. This handles AUTOLOAD-ed constructors
-  (which $class->can( $name ) fails on).
+  (which $class->can( $name ) fails on). If you're really
+  perverted you can now even use O::T to generate objects of
+  type O::T...
 
-- POD
 
 Tue Oct 25 10:34:38 EDT 2005
 
