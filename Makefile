@@ -13,7 +13,7 @@
 #     ABSTRACT => q[Delay construction of objects until their methods are  actually called with minimal source code interference. Optionally use-es the constructing class in the block where the construcor is called. ]
 #     NAME => q[Object::Trampoline]
 #     PREREQ_PM => { strict=>q[0], Carp=>q[0] }
-#     VERSION => q[1.10]
+#     VERSION => q[1.11]
 
 # --- MakeMaker post_initialize section:
 
@@ -53,11 +53,11 @@ DIRFILESEP = /
 DFSEP = $(DIRFILESEP)
 NAME = Object::Trampoline
 NAME_SYM = Object_Trampoline
-VERSION = 1.10
+VERSION = 1.11
 VERSION_MACRO = VERSION
-VERSION_SYM = 1_10
+VERSION_SYM = 1_11
 DEFINE_VERSION = -D$(VERSION_MACRO)=\"$(VERSION)\"
-XS_VERSION = 1.10
+XS_VERSION = 1.11
 XS_VERSION_MACRO = XS_VERSION
 XS_DEFINE_VERSION = -D$(XS_VERSION_MACRO)=\"$(XS_VERSION)\"
 INST_ARCHLIB = blib/arch
@@ -243,7 +243,7 @@ RCS_LABEL = rcs -Nv$(VERSION_SYM): -q
 DIST_CP = best
 DIST_DEFAULT = tardist
 DISTNAME = Object-Trampoline
-DISTVNAME = Object-Trampoline-1.10
+DISTVNAME = Object-Trampoline-1.11
 
 
 # --- MakeMaker macro section:
@@ -466,7 +466,7 @@ metafile : create_distdir
 	$(NOECHO) $(ECHO) '# http://module-build.sourceforge.net/META-spec.html' > META_new.yml
 	$(NOECHO) $(ECHO) '#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#' >> META_new.yml
 	$(NOECHO) $(ECHO) 'name:         Object-Trampoline' >> META_new.yml
-	$(NOECHO) $(ECHO) 'version:      1.10' >> META_new.yml
+	$(NOECHO) $(ECHO) 'version:      1.11' >> META_new.yml
 	$(NOECHO) $(ECHO) 'version_from: ' >> META_new.yml
 	$(NOECHO) $(ECHO) 'installdirs:  site' >> META_new.yml
 	$(NOECHO) $(ECHO) 'requires:' >> META_new.yml
@@ -761,7 +761,7 @@ testdb_static :: testdb_dynamic
 # --- MakeMaker ppd section:
 # Creates a PPD (Perl Package Description) for a binary distribution.
 ppd:
-	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="1,10,0,0">' > $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="1,11,0,0">' > $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <TITLE>$(DISTNAME)</TITLE>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <ABSTRACT>Delay construction of objects until their methods are \nactually called with minimal source code interference.\nOptionally use-es the constructing class in the block\nwhere the construcor is called.\n</ABSTRACT>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <AUTHOR></AUTHOR>' >> $(DISTNAME).ppd

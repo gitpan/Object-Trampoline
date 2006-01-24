@@ -7,7 +7,7 @@ package Object::Trampoline;
 
 use strict;
 
-our $VERSION = "1.01";
+our $VERSION = "1.02";
 
 use Carp;
 
@@ -147,6 +147,11 @@ a method is actually dispatched, simplifies runtime definition
 of handler classes.
 
 =head1 SYNOPSIS
+
+    # adding "use_class" will perform an "eval use $class"
+    # at the point where the object is first accessed.
+
+    use Object::Trampoline; # qw( use_class );
 
     # the real class name is added to the normal constructor
     # and 'Object::Trampoline' used instead. the destination
@@ -395,6 +400,29 @@ to actually constructing the object. The simple cases could
 be handled with a string eval, but then there isn't a good
 way to determine if a require or use is the proper choice.
 In the interest of simplicity I've left that to the caller.
+
+=item
+
+The use_class option adds an:
+
+    eval "use $class";
+
+prior to calling the constructor to generate the object.
+
+If the object is passed across package boundries this 
+can cause some odd and potentially difficult to debug
+errors due to side effects from the import sub. If you
+need to isolate the effects then simply use the class
+where it is needed.
+
+The use_class option is helpful when the class is 
+passed in as a parameter, however. This is especially
+nice in cases where a class object is imported into 
+a configuration module that is eventually used by 
+the class itself. Delaying the use avoids a circular-
+require issue since the constructor's class is not
+actually called until after the configuration module
+has done its work.
 
 =over 4
 
