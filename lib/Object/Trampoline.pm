@@ -7,38 +7,38 @@ package Object::Trampoline;
 
 use strict;
 
-our $VERSION = "1.02";
-
 use Carp;
 
-our $AUTOLOAD = '';
 
 ########################################################################
 # package variables
 ########################################################################
 
-my $use_class = 0;
+our $VERSION = "1.20";
+
+our $AUTOLOAD = '';
 
 ########################################################################
-# import passes in the switch as to whether the class is use-ed
-# or not.
-#
-# note that the flag is universal: there is no good way to 
-# base it on the caller since there is noguarantee that the
-# eventual calling class will match the one seen here.
+# utility sub cleans up the stack, mangles $AUTOLOAD for the
+# constructor.
 
-sub import
+my $prepare =
+sub
 {
-    # discard the class.
+    # discard this class name
 
     shift;
 
-    my %argz = map { $_ => 1 } @_;
+    # grab the destination class and its arguments off the stack.
+    # the constructor name is whatever is being autoloaded.
 
-    $use_class = $argz{ use_class } || 0;
+    my ( $class, @argz ) = @_
+    or croak "Bogus Object::Trampoline: missing destination class";
 
-    0
-}
+    my $name = ( split /::/, $AUTOLOAD )[ -1 ];
+
+    ( $class, $name, \@argz )
+};
 
 ########################################################################
 # the only purpose for this class is having an autoload
@@ -56,36 +56,66 @@ sub import
 
 AUTOLOAD
 {
+    my( $class, $name, $argz ) = &$prepare;
+
+    my $sub = sub { $class->$name( @$argz ) };
+
+    bless $sub, 'Object::Trampoline::Bounce'
+}
+
+########################################################################
+# same gizmo as O::T except that the class is use-ed before the 
+# constructor is called. 
+
+package Object::Trampoline::Use;
+
+use strict;
+
+use Carp;
+
+*VERSION = \$Object::Trampoline::VERSION;
+
+AUTOLOAD
+{
     # discard this class, then grab the "real" class
     # and its arguments and the constructor's name.
+    #
+    # this version does slightly more work since it 
+    # has to put using the module into the caller's
+    # class before calling the constructor.
 
-    shift;
+    my( $class, $name, $argz ) = &$prepare;
 
-    my $class = shift
-    or croak "Bogus Object::Trampoline: missing destination class";
-
-    my @argz = @_;
-
-    my $name = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $caller = caller;
 
     my $sub
     = sub
     {
-        eval "use $class" if $use_class;
+        eval
+        qq{
+            pacakge $caller;
+            eval use $class;
+        };
         
-        $class->$name( @argz )
+        $class->$name( @$argz )
     };
 
     bless $sub, 'Object::Trampoline::Bounce'
 }
 
+########################################################################
+# where the object ends up. All this does is possibly use the package
+# then construct the object and dispatch the call to whatever the 
+# caller was looking for -- which may fail if the package doesn't
+# implement the method.
+
 package Object::Trampoline::Bounce;
 
 use strict;
 
-*VERSION = \$Object::Trampoline::VERSION;
-
 use Carp;
+
+*VERSION = \$Object::Trampoline::VERSION;
 
 our $AUTOLOAD = '';
 
@@ -122,6 +152,8 @@ AUTOLOAD
     {
         # ... otherwise go for it by name and let
         # Perl resolve where the thing goes.
+        #
+        # note that this may fail at runtime.
 
         my $obj = shift;
 
@@ -142,16 +174,16 @@ __END__
 
 =head1 NAME
 
-Object::Trampoline - delay object construction until
-a method is actually dispatched, simplifies runtime definition
-of handler classes.
+Object::Trampoline - delay object construction, and optinally
+using the class' module, until a method is actually dispatched,
+simplifies runtime definition of handler classes.
 
 =head1 SYNOPSIS
 
     # adding "use_class" will perform an "eval use $class"
     # at the point where the object is first accessed.
 
-    use Object::Trampoline; # qw( use_class );
+    use Object::Trampoline;
 
     # the real class name is added to the normal constructor
     # and 'Object::Trampoline' used instead. the destination
@@ -161,7 +193,6 @@ of handler classes.
     my $dbh = Object::Trampoline->connect( 'DBI', $dsn, $user, $pass, $conf );
 
     my $sth = $dbh->prepare( 'select foo from bar' );
-
 
     # or specify the package and args from a config file
     # or via inherited data.
@@ -181,6 +212,16 @@ of handler classes.
     $handle->frobnicate( @stuff );
 
     # at this point ref $handle is $class 
+
+    # there are times when it is helpful to delay using
+    # the object's class module until the object is 
+    # instantiated. O::T::U adds the caller's package
+    # and a "use $class" before the constructor.
+
+    my $lazy = Object::Trampoline::Use->frobnicate( $class, @stuff );
+
+    my $result = $lazy->susan( 'spin_me' );
+
 
 =head1 DESCRIPTION
 
@@ -379,6 +420,40 @@ issues. Obviously at some point there may be a resource
 collision, but at least this delays things until the
 last possible time.
 
+=head2 Avoiding "circular use" situations
+
+When multiple layers of inheritence are used to build 
+up the metadata for an object there are times when 
+the layering gets complicated. It may be that all of
+the data is where it needs to be by the time objects
+are created, but the "use" pragma is in an implicit
+BEGIN block, which can cause startup errors.
+
+Object::Trampoline::Use delays using the constructing
+class until the object is actually used. This allows
+any configuration to be handled in time, even if some
+of the configuration involves objects from the included
+classes.
+
+Say that a project's Defaults.pm reads the command
+line and folds in static default values. After that
+Channels.pm creates various channel object using
+the configuration values. Another overall configuration
+module might then use the Defaults and Channels to
+get its list of exported values.
+
+Problems start when modules implementing the channels 
+use values from the configuration module, leading 
+to a circular use situation at startup.
+
+Object::Trampoline::Use avoids this issue by allowing
+the channel objects to be configured in lower-level
+modules, with their class import and instantiation 
+delayed until the objects are used. The configuration
+module can merrily hand out channel objects, who'se 
+classes will not be use-ed until after the configuration
+stack is complete.
+
 =head1 KNOWN BUGS
 
 =over 4
@@ -386,50 +461,40 @@ last possible time.
 =item
 
 Not a bug, really, but if your constructor has side effects
-(e.g., opening log files) then delaying the construction will
-delay the side effects. Net result is that the side effects
-may have to migrate into the import where feasable or you just
-have to wait for the side effects to show up when the object
-is really used.
+(e.g., opening log files) then delaying the construction
+will delay the side effects. Net result is that the side
+effects may have to migrate into the import where feasable
+or you just have to wait for the side effects to show
+up when the object is really used.
 
 =item 
 
-Also not really a bug, but it is the caller's responsability
-to actually "use" or "require" the destination class prior
-to actually constructing the object. The simple cases could
-be handled with a string eval, but then there isn't a good
-way to determine if a require or use is the proper choice.
-In the interest of simplicity I've left that to the caller.
+Object::Trampoline does not use any classes for itself.
+This puts the onus of use, require, or do of the module
+defining the class onto the caller.
+
+Object::Trampoline::Use will use the module in the 
+caller's package, but the use will be delayed until
+an object is use-ed. This will delay side effects of
+import calls (see previous item).
 
 =item
 
-The use_class option adds an:
+There is no way to pass arguments to the use call for
+a class in Object::Trampoline::Use. If that is necessary
+then either use the class with Object::Trampoline or 
+write a wrapper class whose constructor uses the class
+with the appropriate arguments.
 
-    eval "use $class";
+=item
 
-prior to calling the constructor to generate the object.
-
-If the object is passed across package boundries this 
-can cause some odd and potentially difficult to debug
-errors due to side effects from the import sub. If you
-need to isolate the effects then simply use the class
-where it is needed.
-
-The use_class option is helpful when the class is 
-passed in as a parameter, however. This is especially
-nice in cases where a class object is imported into 
-a configuration module that is eventually used by 
-the class itself. Delaying the use avoids a circular-
-require issue since the constructor's class is not
-actually called until after the configuration module
-has done its work.
+If your code depends on side-effects of the constructor
+manipulating the values in @_ then this module will not
+work for you: the call stack is copied to a lexical in 
+order to create the constructor closure. This will not
+be a problem for any module I know of.
 
 =over 4
-
-One way around this would be passing in a closure as the 
-first argument instead of the class. This could be executed
-as-is to get the object. If anyone has a strong opinion on
-this please warn me.
 
 =back
 

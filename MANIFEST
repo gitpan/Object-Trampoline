@@ -1,8 +1,8 @@
-lib/Object/Trampoline.pm
-t/02.t
-t/01.t
-Makefile.PL
 Changes
 MANIFEST
-README
 META.yml
+Makefile.PL
+README
+lib/Object/Trampoline.pm
+t/01.t
+t/02.t

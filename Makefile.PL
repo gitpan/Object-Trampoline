@@ -3,13 +3,8 @@ use ExtUtils::MakeMaker;
 WriteMakefile
 (
 	NAME            => 'Object::Trampoline',
-	VERSION         => '1.12',
-	ABSTRACT		=> <<'TEXT',
-Delay construction of objects until their methods are 
-actually called with minimal source code interference.
-Optionally use-es the constructing class in the block
-where the construcor is called.
-TEXT
+	VERSION         => '1.20',
+	ABSTRACT_FROM   => './lib/Object/Trampoline.pm',
 
 	PREREQ_PM =>
 	{

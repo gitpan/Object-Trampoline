@@ -1,3 +1,11 @@
+Wed Jan 25 16:51:15 EST 2006
+
+- use_class got too klutzy due to issues with bookkeeping
+  multiple calling classes. Feh... Added Object::Trampoline::Use
+  that does a use in the caller's package to get the object.
+
+- Upated the POD.
+
 Tue Jan 24 18:00:50 EST 2006
 
 - Add add'l argument for using the construcor class 
