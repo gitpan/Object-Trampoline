@@ -16,7 +16,7 @@ use Carp;
 # package variables
 ########################################################################
 
-our $VERSION = "1.21";
+our $VERSION = "1.22";
 
 ########################################################################
 #
@@ -97,7 +97,7 @@ AUTOLOAD
         eval
         qq{
             package $caller;
-            eval use $class;
+            use $class;
         };
         
         $class->$const( @argz )
