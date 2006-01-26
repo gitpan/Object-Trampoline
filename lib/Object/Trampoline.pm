@@ -1,6 +1,9 @@
 ########################################################################
 # Object::Trampoline
 # delay construction of objects until they are needed.
+#
+# the only purpose for the top two classes is having an autoload
+# that blesses things into O::T::Bounce.
 ########################################################################
 
 package Object::Trampoline;
@@ -9,40 +12,17 @@ use strict;
 
 use Carp;
 
-
 ########################################################################
 # package variables
 ########################################################################
 
-our $VERSION = "1.20";
-
-our $AUTOLOAD = '';
+our $VERSION = "1.21";
 
 ########################################################################
-# utility sub cleans up the stack, mangles $AUTOLOAD for the
-# constructor.
-
-my $prepare =
-sub
-{
-    # discard this class name
-
-    shift;
-
-    # grab the destination class and its arguments off the stack.
-    # the constructor name is whatever is being autoloaded.
-
-    my ( $class, @argz ) = @_
-    or croak "Bogus Object::Trampoline: missing destination class";
-
-    my $name = ( split /::/, $AUTOLOAD )[ -1 ];
-
-    ( $class, $name, \@argz )
-};
-
-########################################################################
-# the only purpose for this class is having an autoload
-# that blesses things into O::T::Bounce.
+#
+# start by grabbing the destination class and its arguments
+# off the stack.  the constructor name is whatever is
+# being autoloaded.
 #
 # there may not be any arguments... either way i need
 # to make a lexical copy of the stack for use in the
@@ -53,12 +33,25 @@ sub
 #
 # $sub is syntatic sugar but is inexpensive enough to
 # construct.
+#
+# Note: there are no DESTROY blocks in the constructing
+# classes since no objects ever live there: they begin
+# life in O::T::Bounce.
+
+our $AUTOLOAD = '';
 
 AUTOLOAD
 {
-    my( $class, $name, $argz ) = &$prepare;
+    # discard this class name
 
-    my $sub = sub { $class->$name( @$argz ) };
+    shift;
+
+    my ( $class, @argz ) = @_
+    or croak "Bogus Object::Trampoline: missing destination class";
+
+    my $const = ( split /::/, $AUTOLOAD )[ -1 ];
+
+    my $sub = sub { $class->$const( @argz ) };
 
     bless $sub, 'Object::Trampoline::Bounce'
 }
@@ -75,6 +68,8 @@ use Carp;
 
 *VERSION = \$Object::Trampoline::VERSION;
 
+our $AUTOLOAD = '';
+
 AUTOLOAD
 {
     # discard this class, then grab the "real" class
@@ -84,7 +79,15 @@ AUTOLOAD
     # has to put using the module into the caller's
     # class before calling the constructor.
 
-    my( $class, $name, $argz ) = &$prepare;
+    shift;
+
+    # grab the destination class and its arguments off the stack.
+    # the constructor name is whatever is being autoloaded.
+
+    my ( $class, @argz ) = @_
+    or croak "Bogus Object::Trampoline: missing destination class";
+
+    my $const = ( split /::/, $AUTOLOAD )[ -1 ];
 
     my $caller = caller;
 
@@ -93,11 +96,11 @@ AUTOLOAD
     {
         eval
         qq{
-            pacakge $caller;
+            package $caller;
             eval use $class;
         };
         
-        $class->$name( @$argz )
+        $class->$const( @argz )
     };
 
     bless $sub, 'Object::Trampoline::Bounce'
@@ -108,6 +111,22 @@ AUTOLOAD
 # then construct the object and dispatch the call to whatever the 
 # caller was looking for -- which may fail if the package doesn't
 # implement the method.
+#
+# $_[0] = $_[0]->() replaces the trampoline argument
+# with the real thing by calling its constructor -- call
+# by reference is a Very Good Thing.
+#
+# after that it can be shifted off and used to access
+# the method. note that this is necessary in order
+# to allow for classes which implement their methods
+# via AUTOLOAD (which will defeat using $obj->can( $name )).
+#
+# note that it's up to the caller to deal with any exceptions
+# that come out of calling the method.
+#
+# goto is a more effecient way to get there if the class
+# has an explicit method for handling the call; otherwise
+# use the name to dispatch the call.
 
 package Object::Trampoline::Bounce;
 
@@ -121,48 +140,25 @@ our $AUTOLOAD = '';
 
 AUTOLOAD
 {
-    # replace the trampoline argument with the real
-    # thing by calling its constructor -- call by 
-    # reference is a Very Good Thing.
-    #
-    # after that it can be shifted off and used to 
-    # access the method. note that this is necessary
-    # in order to allow for classes which implement
-    # their methods via AUTOLOAD (which will defeat
-    # using $obj->can( $name )).
-
     $_[0] = $_[0]->();
 
     my $class = ref $_[0];
 
-    my $name = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $method = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    # note that it's up to the caller to deal
-    # with any exceptions that come out of 
-    # calling the method.
-
-    if( my $sub = $_[0]->can( $name ) )
+    if( my $sub = $_[0]->can( $method ) )
     {
-        # more effecient way to get there if the 
-        # sub has a real name...
-
         goto &$sub
     }
     else
     {
-        # ... otherwise go for it by name and let
-        # Perl resolve where the thing goes.
-        #
-        # note that this may fail at runtime.
-
         my $obj = shift;
 
-        $obj->$name( @_ )
+        $obj->$method( @_ )
     }
 }
 
-# stub destroy is necessary to dodge AUTOLOAD for
-# unused objects.
+# stub destroy dodges AUTOLOAD for unused trampolines.
 
 DESTROY {}
 
@@ -202,10 +198,10 @@ simplifies runtime definition of handler classes.
 
     my %config = Config->read( $config_file_path );
 
-    my ( $class, $const, $argz )
+    my ( $class, $const, @argz )
     = @config{ qw( class const args ) };
 
-    my $handle = Object::Trampoline->$const( $class, $argz );
+    my $handle = Object::Trampoline->$const( $class, @argz );
 
     # at this point ref $handle is 'Object::Trampoline::Bounce'.
 

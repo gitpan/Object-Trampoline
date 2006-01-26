@@ -1,3 +1,12 @@
+Thu Jan 26 17:43:45 EST 2006
+
+- Fixed typo in eval (dbkliv)
+
+- Update pod.
+
+- Code cleanup: redispatching anon sub blows up with wierd
+  stack error in 5.8.4; not that much code to duplicate.
+
 Wed Jan 25 16:51:15 EST 2006
 
 - use_class got too klutzy due to issues with bookkeeping
