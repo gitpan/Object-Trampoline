@@ -1,3 +1,14 @@
+Tue Jan 31 17:04:08 EST 2006
+
+- POD.
+
+- Minor code cleanups.
+
+- Added 03.t to test variables installed via assignment-
+  to-glob:  *{ $ref } = \$trampoline. This is also a good
+  example of how to export variables into multiple packages.
+
+
 Thu Jan 26 17:43:45 EST 2006
 
 - Fixed typo in eval (dbkliv)

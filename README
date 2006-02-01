@@ -19,3 +19,11 @@ classes each consist of an AUTOLOAD.
 The code is pure perl and requires only standard 
 distribution classes (strict and Carp) and should be
 equally usable on any platform supported by Perl.
+
+Please see the POD for notes on how the objects are
+created and shared. If having mutliple handles come
+out of the trampoline is usful (i.e., a delayed 
+factory) please warn me and I'll add back a package
+with $_[0] = $_[0]->(), which does exactly that.
+
+enjoi

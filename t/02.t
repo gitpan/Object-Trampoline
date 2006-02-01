@@ -1,4 +1,8 @@
 
+# sanity check: will three objects created with different
+# types in different packages get assigned the proper data
+# types in the correct packages.
+
 use Object::Trampoline;
 
 use Test::More ( tests => 12 );
