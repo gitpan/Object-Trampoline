@@ -16,7 +16,7 @@ use Carp;
 # package variables
 ########################################################################
 
-our $VERSION = "1.24";
+our $VERSION = "1.25";
 
 ########################################################################
 #
@@ -37,6 +37,12 @@ our $VERSION = "1.24";
 # Note: there are no DESTROY blocks in the constructing
 # classes since no objects ever live there: they begin
 # life in O::T::Bounce.
+#
+# catch: some classes use tied items to encapsulate their
+# configuration attributes (e.g., DBI). this leaves the 
+# first access sometimes in a tied operation... the object
+# passed to a tie operator is >>NOT<< the wrapped operator.
+# this requires a lookup table of tied guts to wrappers.
 
 our $AUTOLOAD = '';
 
@@ -53,7 +59,8 @@ AUTOLOAD
 
     # the construction is delayed until this gets called.
 
-    bless sub { $class->$const( @argz ) }, 'Object::Trampoline::Bounce'
+    bless sub { $class->$const( @argz ) },
+    'Object::Trampoline::Bounce'
 }
 
 ########################################################################
@@ -536,7 +543,18 @@ in Perl). Trick is that until the object has a method
 called on it the constructor never has a chance to tie
 the thing, so tied access breaks.
 
-No fix on this for now.
+Another way to look at it is that a Trampoline object 
+won't be tied to whatever the real class uses.
+
+There isn't any way I've found yet to create a generic
+tie class: one with an autoload that will gracefully
+handle scalar, array, hash, and file operations in a
+way that I can pass through AUTOLOAD to instantiate the
+object. Every fix I've seen so far requires knowing the
+base type of the object beforehand.
+
+Suggestions welcome.
+
 
 =item Operator overloading
 
@@ -555,15 +573,23 @@ object. This is usually just what you want: a single
 database or network connection handle with delayed 
 construction. 
 
-This means that if one module is used to export mutliple
-copies of an object to other classes via some form of
-*{ $ref } = \$object (with Symbol or no strict), Object::Trampoline
-will create only one copy of the object and it will be
-shared among the various modules.
+Creating copies of the trampoline object itself, however,
+can generate multiple copies of the bounced object. Which
+is normally just what you want.
 
-If the various modules need their own handles then 
-simply create multiple trampoline objects rather than
-installing the same one in each module.
+There are some pathalogical cases where arguments are 
+copied into lexical variables and then called that the 
+original trampoline will create copies -- essentially 
+acting as a factory. If you see more construction and
+destruction than planned, check how the trampolines
+are passed around and you'll probably find a lexical 
+copy somewhere that is popluating itself instead of the
+global copy. The fix there is to install the trampoline
+into the caller's space (e.g., using Symbol) or use it
+via $_[X] instead of copying the thing.
+
+See ./t/03.t for examples of how a single trampoline object
+can be installed for sharing in multiple packages.
 
 =back
 

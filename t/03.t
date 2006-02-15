@@ -8,7 +8,7 @@ use Symbol;
 
 use Object::Trampoline;
 
-use Test::More qw( no_plan );
+use Test::More tests => 17; #qw( no_plan );
 
 my $class = 'whatsis';
 
