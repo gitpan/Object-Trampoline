@@ -1,79 +1,81 @@
 
-# slightly more complicated: will the same object installed
-# by assigning to a glob end up as the same object?
-
 use strict;
-
-use Symbol;
+use lib qw( t );
 
 use Object::Trampoline;
 
-use Test::More tests => 17; #qw( no_plan );
+use Symbol      qw( qualify_to_ref );
+use Test::More  qw( tests 22 );
 
-my $class = 'whatsis';
+my $ref = qualify_to_ref 'Carp::croak';
 
+undef &{ *$ref };
+
+my $found   = '';
+my $expect  = '';
+
+*$ref
+= sub
 {
-    my $t = Object::Trampoline->construct( $class );
+    my $found    = shift;
 
-    for( qw( abc ijk xyz ) )
-    {
-        my $ref = qualify_to_ref 't', $_;
+    ok ! ( index $found, $expect ), "Found '$expect' ($found)";
 
-        *$ref = \$t;
-    }
-}
+    # break out of the AUTOLOAD.
 
-isa_ok( $abc::t,    'Object::Trampoline::Bounce' );
-isa_ok( $ijk::t,    'Object::Trampoline::Bounce' );
-isa_ok( $xyz::t,    'Object::Trampoline::Bounce' );
+    die "Test\n"
+};
 
-# calling frobnicate on any one of them updates them all:
-# the type changes and the value is modified.
+# found false names?
 
-print "\nFrobnicating abc...\n";
+$expect = q{Object::Trampoline: class is false.};
+eval { Object::Trampoline->frobnicate( '' ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-$abc::t->frobnicate;
+$expect = q{Object::Trampoline: class is false.};
+eval { Object::Trampoline::Use->frobnicate( '' ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-isa_ok( $abc::t,    $class );
-isa_ok( $ijk::t,    $class );
-isa_ok( $xyz::t,    $class );
+$expect = q{Object::Trampoline: class is false.};
+eval { Object::Trampoline->frobnicate( undef ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-ok( $$abc::t == $$ijk::t, 'abc == ijk' );
-ok( $$abc::t == $$xyz::t, 'abc == xyz' );
+$expect = q{Object::Trampoline: class is false.};
+eval { Object::Trampoline::Use->frobnicate( undef ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-# updating any one of these should update all of them.
+$expect = q{Object::Trampoline: class is false.};
+eval { Object::Trampoline->frobnicate() };
+ok $@ eq "Test\n", 'Test croak called';
 
-for
-(
-    [ $abc::t, 'foo' ],
-    [ $ijk::t, 'bar' ],
-    [ $xyz::t, 'xxx' ],
-)
-{
-    my( $obj, $value ) = @$_;
+$expect = q{Object::Trampoline: class is false.};
+eval { Object::Trampoline::Use->frobnicate() };
+ok $@ eq "Test\n", 'Test croak called';
 
-    $$obj = $value;
+# found bogus names (not valid packages):
 
-    ok( $$abc::t eq $value, "abc updated to $value" );
-    ok( $$ijk::t eq $value, "ijk updated to $value" );
-    ok( $$xyz::t eq $value, "xyz updated to $value" );
-}
+$expect = q{Bogus Object::Trampoline: '1234' is invalid classname.};
+eval { Object::Trampoline->frobnicate( '1234' ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-# at this point if nothing has failed then the three
-# instances $XXX::t are the "same" variable created
-# via the trampoline.
+$expect = q{Bogus Object::Trampoline: 'ab%cd' is invalid classname.};
+eval { Object::Trampoline->frobnicate( 'ab%cd' ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-package whatsis;
+$expect = q{Bogus Object::Trampoline: '1234' is invalid classname.};
+eval { Object::Trampoline::Use->frobnicate( '1234' ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-use strict;
-use Scalar::Util qw( refaddr );
+$expect = q{Bogus Object::Trampoline: 'ab%cd' is invalid classname.};
+eval { Object::Trampoline::Use->frobnicate( 'ab%cd' ) };
+ok $@ eq "Test\n", 'Test croak called';
 
-sub construct   { bless \( my $a = '' ), __PACKAGE__ }
+# failed to load package with zero exit?
 
-sub frobnicate  { ${ $_[0] } = refaddr $_[0] }
+$expect     = q{Failed:};
+my $tramp   = Object::Trampoline::Use->frobnicate( 'Broken' );
 
-# this isn't a module
-
-0
+eval { $tramp->breaks_here };
+ok $@ eq "Test\n", 'Test croak called';
 
 __END__

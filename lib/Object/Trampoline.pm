@@ -5,6 +5,9 @@
 # the only purpose for the top two classes is having an autoload
 # that blesses things into O::T::Bounce.
 ########################################################################
+########################################################################
+# housekeeping
+########################################################################
 
 package Object::Trampoline;
 
@@ -16,8 +19,16 @@ use Carp;
 # package variables
 ########################################################################
 
-our $VERSION = "1.25";
+our $VERSION    = "1.26";
 
+# minimal sanity check for valid class name, used in both
+# O::T and O::T::U.
+
+my $pkg_rx      = qr{^ [_A-Za-z](?:\w*) (?:::\w+)* $}x;
+
+########################################################################
+# AUTOLOAD is the only public interface
+########################################################################
 ########################################################################
 #
 # start by grabbing the destination class and its arguments
@@ -37,12 +48,6 @@ our $VERSION = "1.25";
 # Note: there are no DESTROY blocks in the constructing
 # classes since no objects ever live there: they begin
 # life in O::T::Bounce.
-#
-# catch: some classes use tied items to encapsulate their
-# configuration attributes (e.g., DBI). this leaves the 
-# first access sometimes in a tied operation... the object
-# passed to a tie operator is >>NOT<< the wrapped operator.
-# this requires a lookup table of tied guts to wrappers.
 
 our $AUTOLOAD = '';
 
@@ -52,20 +57,35 @@ AUTOLOAD
 
     shift;
 
-    my ( $class, @argz ) = @_
-    or croak "Bogus Object::Trampoline: missing destination class";
+    # quick santy check: does the class look at least
+    # minimally useful?
 
-    my $const = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $class   = shift
+    or croak "Object::Trampoline: class is false.";
 
-    # the construction is delayed until this gets called.
+    $class =~ $pkg_rx
+    or croak "Bogus Object::Trampoline: '$class' is invalid classname.";
 
-    bless sub { $class->$const( @argz ) },
-    'Object::Trampoline::Bounce'
+    # if so, then snag the args for future use, 
+    # figure out what the original constructor 
+    # was called, and push it all off until
+    # necessary.
+
+    my @argz    = @_;
+
+    my $const   = ( split /::/, $AUTOLOAD )[ -1 ];
+
+    my $sub     = sub { $class->$const( @argz ) };
+
+    bless $sub, 'Object::Trampoline::Bounce'
 }
 
 ########################################################################
 # same gizmo as O::T except that the class is use-ed before the 
 # constructor is called. 
+########################################################################
+# housekeeping
+########################################################################
 
 package Object::Trampoline::Use;
 
@@ -73,9 +93,17 @@ use strict;
 
 use Carp;
 
+########################################################################
+# package variables
+########################################################################
+
 *VERSION = \$Object::Trampoline::VERSION;
 
 our $AUTOLOAD = '';
+
+########################################################################
+# AUTOLOAD is the only public interface
+########################################################################
 
 AUTOLOAD
 {
@@ -85,24 +113,36 @@ AUTOLOAD
 
     shift;
 
-    # grab the destination class and its arguments off the stack.
-    # the constructor name is whatever is being autoloaded.
+    my $class   = shift
+    or croak "Object::Trampoline: class is false.";
 
-    my ( $class, @argz ) = @_
-    or croak "Bogus Object::Trampoline: missing destination class";
+    # quick santy check: does the class look at least
+    # minimally useful?
+
+    $class =~ $pkg_rx
+    or croak "Bogus Object::Trampoline: '$class' is invalid classname.";
+
+    my @argz    = @_;
 
     my $const = ( split /::/, $AUTOLOAD )[ -1 ];
 
     my $caller = caller;
 
-    my $sub
-    = sub
+    my $sanity
+    = qq
     {
-        eval
-        qq{
-            package $caller;
-            use $class;
-        };
+        package $caller;
+
+        use $class;
+
+        1
+    };
+
+    my $sub =
+    sub
+    {
+        eval "$sanity"
+        or croak "Failed: $sanity\n$@";
         
         $class->$const( @argz )
     };
@@ -116,16 +156,14 @@ AUTOLOAD
 # caller was looking for -- which may fail if the package doesn't
 # implement the method.
 #
-# the syntax here gets a bit hairy since the blessed object is
-# not being updated, the referent it contains is. replacing the
-# anon sub allows re-executing it without creating a new object.
+# $_[0] = $_[0]->() replaces the trampoline argument
+# with the real thing by calling its constructor -- call
+# by reference is a Very Good Thing.
 #
-# there is also a reference counting issue here since the anon
-# sub maintained by $_[0] has a reference to the trampolined
-# object. this is survivable, however, since $_[0] is overwritten
-# by the object itself. this kills the stub subref at the exit
-# of AUTOLOAD unless there are other copies of the original
-# trampoline object keeping it alive. 
+# after that it can be shifted off and used to access
+# the method. note that this is necessary in order
+# to allow for classes which implement their methods
+# via AUTOLOAD (which will defeat using $obj->can( $name )).
 #
 # note that it's up to the caller to deal with any exceptions
 # that come out of calling the method.
@@ -140,33 +178,34 @@ use strict;
 
 use Carp;
 
+use Scalar::Util    qw( blessed );
+
 *VERSION = \$Object::Trampoline::VERSION;
 
 our $AUTOLOAD = '';
 
 AUTOLOAD
 {
+    $_[0]   = $_[0]->()
+    or croak "Failed constructor";
 
-    my $obj = $_[0] = $_[0]->();
+    # oddity in 5.10.0 leaves $_[0] undef in blessed
+    # at this point. 
 
-    my $class = ref $obj;
+    my $class   = blessed $_[0]
+    or croak "Failed constructor: '$_[0]' not blessed";
 
-    my $name = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $method = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    # the caller is left to deal with any problems calling
-    # the constructor. can might fail if the constructor
-    # is autoloaded or an AUTOLOAD of its own (e.g., 
-    # Obj::Autostub).
-
-    if( my $sub = $obj->can( $name ) )
+    if( my $sub = $class->can( $method ) )
     {
-        goto &$sub;
+        goto &$sub
     }
     else
     {
-        shift;
+        my $obj = shift;
 
-        $obj->$name( @_ )
+        $obj->$method( @_ )
     }
 }
 
@@ -228,7 +267,7 @@ simplifies runtime definition of handler classes.
 
     my $lazy = Object::Trampoline::Use->frobnicate( $class, @stuff );
 
-    my $result = $lazy->susan( 'dessert' );
+    my $result = $lazy->susan( 'spin_me' );
 
 
 =head1 DESCRIPTION
@@ -396,7 +435,7 @@ A hard-coded catalog might start out as:
     }
 
 
-At this point anyone can use Our::Channel::Catalog
+At this point anyonen can use Our::Channel::Catalog
 and have immeidate access to the standard handles
 (which have their default values and list pushed into
 the revision control system).
@@ -462,71 +501,31 @@ module can merrily hand out channel objects, who'se
 classes will not be use-ed until after the configuration
 stack is complete.
 
-=head1 SEE ALSO
+=head1 KNOWN BUGS
 
 =over 4
 
-=item As always perldoc is your friend...
+=item
 
-All of these have useful information in them:
+Not a bug, really, but if your constructor has side effects
+(e.g., opening log files) then delaying the construction
+will delay the side effects. Net result is that the side
+effects may have to migrate into the import where feasable
+or you just have to wait for the side effects to show
+up when the object is really used.
 
-    perlref
+=item 
 
-    perlreftut
-
-    perltie
-
-=item _OO Perl_, Damian Conway
-
-Lots of examples, goes over how to deal with constructing
-tied objects.
-
-=back
-
-=head1 KNOWN ISSUES
-
-=head2 Delaying construction
-
-=over 4
-
-=item Constructor external side effects
-
-If your constructor has side effects (e.g., opening log
-files) then delaying the construction will delay the
-side effects. Net result is that the side effects may
-have to migrate into the import where feasable or you
-just have to wait for the side effects to show up when
-the object is really used.
-
-=item Constructor modifying @_
-
-If your code depends on side-effects of the constructor
-manipulating the values in @_ then this module will not
-work for you: the call stack is copied to a lexical in 
-order to create the constructor closure. This will not
-be a problem for any module I know of.
-
-=item Late "use" 
+Object::Trampoline does not use any classes for itself.
+This puts the onus of use, require, or do of the module
+defining the class onto the caller.
 
 Object::Trampoline::Use will use the module in the 
 caller's package, but the use will be delayed until
 an object is use-ed. This will delay side effects of
-import calls. Even if this does not cause errors, 
-calling Foo->import() can lead to startup messages
-or delayed errors. 
+import calls (see previous item).
 
-If this is a problem then use the module in the main
-code with Object::Trampoline to create it.  This puts
-the onus of use, require, or do of the module defining
-the class onto the caller.
-
-=back
-
-=head2 Other design issues (Caveat Saltor)
-
-=over 4
-
-=item Passing arguments to import
+=item
 
 There is no way to pass arguments to the use call for
 a class in Object::Trampoline::Use. If that is necessary
@@ -534,68 +533,19 @@ then either use the class with Object::Trampoline or
 write a wrapper class whose constructor uses the class
 with the appropriate arguments.
 
-=item Tied objects
+=item
 
-Depending on how your class is constructed, the tied
-operators may not be available in the same class as
-the object's class (which actually makes life easier
-in Perl). Trick is that until the object has a method
-called on it the constructor never has a chance to tie
-the thing, so tied access breaks.
+If your code depends on side-effects of the constructor
+manipulating the values in @_ then this module will not
+work for you: the call stack is copied to a lexical in 
+order to create the constructor closure. This will not
+be a problem for any module I know of.
 
-Another way to look at it is that a Trampoline object 
-won't be tied to whatever the real class uses.
-
-There isn't any way I've found yet to create a generic
-tie class: one with an autoload that will gracefully
-handle scalar, array, hash, and file operations in a
-way that I can pass through AUTOLOAD to instantiate the
-object. Every fix I've seen so far requires knowing the
-base type of the object beforehand.
-
-Suggestions welcome.
-
-
-=item Operator overloading
-
-Ditto the overloads: until the thing is really blessed
-into the appropriate class there isn't any way to 
-associate the operators with it. 
-
-Simple fix is to call a 'sub' method to ricochet off
-the AUTOLOAD before using the overloads.
-
-
-=item Sharing objects
-
-Object::Trampoline will create a single instance of the
-object. This is usually just what you want: a single
-database or network connection handle with delayed 
-construction. 
-
-Creating copies of the trampoline object itself, however,
-can generate multiple copies of the bounced object. Which
-is normally just what you want.
-
-There are some pathalogical cases where arguments are 
-copied into lexical variables and then called that the 
-original trampoline will create copies -- essentially 
-acting as a factory. If you see more construction and
-destruction than planned, check how the trampolines
-are passed around and you'll probably find a lexical 
-copy somewhere that is popluating itself instead of the
-global copy. The fix there is to install the trampoline
-into the caller's space (e.g., using Symbol) or use it
-via $_[X] instead of copying the thing.
-
-See ./t/03.t for examples of how a single trampoline object
-can be installed for sharing in multiple packages.
+=over 4
 
 =back
 
-=head1 KNOWN BUGS
-
-None, yet...
+=back
 
 =head1 AUTHOR
 

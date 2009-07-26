@@ -7,3 +7,4 @@ lib/Object/Trampoline.pm
 t/01.t
 t/02.t
 t/03.t
+t/Broken.pm

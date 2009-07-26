@@ -1,21 +1,22 @@
-Wed Feb 15 11:29:17 EST 2006
+Wed Jul 22 20:13:17 EDT 2009
 
-- POD.
+- Check that the use succeeded in eval.
 
-- Comments.
+- Check for a true value of the class on the
+  way in and constructor on the way out. 
 
-- Tests.
+- Replace "ref" with "blessed" to validate
+  object construction.
 
-Tue Jan 31 17:04:08 EST 2006
+- Update the tests to use blessed also.
 
-- POD.
+- Added a test for rejecting false classes
+  in the initial construction, failure to 
+  use the class on bounce.
 
-- Minor code cleanups.
-
-- Added 03.t to test variables installed via assignment-
-  to-glob:  *{ $ref } = \$trampoline. This is also a good
-  example of how to export variables into multiple packages.
-
+- Module now depends on Symbol (for testing)
+  and Scalar::Util (for operation) also; both
+  are core so it shouldn't cause any pain.
 
 Thu Jan 26 17:43:45 EST 2006
 
