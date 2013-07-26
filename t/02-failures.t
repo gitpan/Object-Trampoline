@@ -28,27 +28,27 @@ my $expect  = '';
 
 # found false names?
 
-$expect = q{Object::Trampoline: prototype is false.};
+$expect = q{Object::Trampoline: false prototype.};
 eval { Object::Trampoline->frobnicate( '' ) };
 ok $@ eq "Test\n", 'Test croak called';
 
-$expect = q{Object::Trampoline::Use: prototype is false.};
+$expect = q{Object::Trampoline::Use: false prototype.};
 eval { Object::Trampoline::Use->frobnicate( '' ) };
 ok $@ eq "Test\n", 'Test croak called';
 
-$expect = q{Object::Trampoline: prototype is false.};
+$expect = q{Object::Trampoline: false prototype.};
 eval { Object::Trampoline->frobnicate( undef ) };
 ok $@ eq "Test\n", 'Test croak called';
 
-$expect = q{Object::Trampoline::Use: prototype is false.};
+$expect = q{Object::Trampoline::Use: false prototype.};
 eval { Object::Trampoline::Use->frobnicate( undef ) };
 ok $@ eq "Test\n", 'Test croak called';
 
-$expect = q{Object::Trampoline: prototype is false.};
+$expect = q{Object::Trampoline: false prototype.};
 eval { Object::Trampoline->frobnicate() };
 ok $@ eq "Test\n", 'Test croak called';
 
-$expect = q{Object::Trampoline::Use: prototype is false.};
+$expect = q{Object::Trampoline::Use: false prototype.};
 eval { Object::Trampoline::Use->frobnicate() };
 ok $@ eq "Test\n", 'Test croak called';
 

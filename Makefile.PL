@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile
 (
 	NAME            => 'Object::Trampoline',
-	VERSION			=> '1.29',
+	VERSION			=> '1.30',
 	ABSTRACT_FROM   => './lib/Object/Trampoline.pm',
 
 	PREREQ_PM =>

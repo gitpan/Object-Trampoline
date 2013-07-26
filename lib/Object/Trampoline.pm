@@ -18,7 +18,7 @@ use Carp;
 # package variables
 ########################################################################
 
-our $VERSION    = v1.28;
+our $VERSION    = v1.30.0;
 
 # minimal sanity check for valid class name, used in both
 # O::T and O::T::U.
@@ -59,11 +59,11 @@ AUTOLOAD
     my ( undef, $proto, @argz ) = @_;
 
     $proto
-    or croak "Object::Trampoline: prototype is false.";
+    or croak "Object::Trampoline: false prototype.";
 
-    my $const   = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $method  = ( split /::/, "$AUTOLOAD" )[ -1 ];
 
-    my $sub     = sub { $proto->$const( @argz ) };
+    my $sub     = sub { $proto->$method( @argz ) };
 
     bless $sub, 'Object::Trampoline::Bounce'
 }
@@ -101,12 +101,12 @@ AUTOLOAD
     my ( undef, $proto, @argz ) = @_;
 
     $proto
-    or croak "Object::Trampoline::Use: prototype is false.";
+    or croak "Object::Trampoline::Use: false prototype.";
 
-    my $const   = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $method  = ( split /::/, $AUTOLOAD )[ -1 ];
     my $caller  = caller;
 
-    my $sanity
+    my $init
     = qq
     {
         package $caller;
@@ -116,10 +116,10 @@ AUTOLOAD
     my $sub =
     sub
     {
-        eval "$sanity"
-        or croak "Failed: $sanity\n$@";
+        eval "$init"
+        or croak "Failed: $init\n$@";
         
-        $proto->$const( @argz )
+        $proto->$method( @argz )
     };
 
     bless $sub, 'Object::Trampoline::Bounce'
@@ -153,7 +153,8 @@ use v5.12;
 
 use Carp;
 
-use Scalar::Util    qw( blessed );
+use Scalar::Util    qw( blessed         );
+use Symbol          qw( qualify_to_ref  );
 
 *VERSION = \$Object::Trampoline::VERSION;
 
@@ -187,10 +188,16 @@ AUTOLOAD
 
 # re-route methods from UNIVERSAL through the bounce.
 
-*DOES       = \&AUTOLOAD;
-*VERSION    = \&AUTOLOAD;
-*can        = \&AUTOLOAD;
-*isa        = \&AUTOLOAD;
+for my $name ( keys %{ $::{ 'UNIVERSAL::' } } )
+{
+    *{ qualify_to_ref $name }
+    = sub
+    {
+        $AUTOLOAD = $name;
+        
+        goto &AUTOLOAD
+    };
+}
 
 # stub destroy dodges AUTOLOAD for unused trampolines.
 

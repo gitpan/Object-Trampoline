@@ -21,4 +21,4 @@ requires:
   Carp: 0
   Scalar::Util: 0
   Symbol: 0
-version: 1.29
+version: 1.30

@@ -1,10 +1,13 @@
 Fri Jul 26 12:09:17 CDT 2013
 
-- v1.29
+- v1.30
 - use v5.12.
 - drop "use strict" (now built-in).
 - Remove regex check on prototype, allows using object to dispatch
-  constructor (allows dispatch via object for factory object).
+  constructor (allows dispatch via factory object).
+- Add overrides for UNIVERSAL class methods that dispatch into 
+  the AUTOLOAD ($trampoline->isa( X ) or can will return correct
+  value).
 
 Tue Jun 12 13:55:35 CDT 2012
 
