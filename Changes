@@ -1,3 +1,16 @@
+Fri Jul 26 12:09:17 CDT 2013
+
+- v1.29
+- use v5.12.
+- drop "use strict" (now built-in).
+- Remove regex check on prototype, allows using object to dispatch
+  constructor (allows dispatch via object for factory object).
+
+Tue Jun 12 13:55:35 CDT 2012
+
+- Minor test cleanups.
+- use v5.8.
+
 Wed Jul 22 20:13:17 EDT 2009
 
 - Check that the use succeeded in eval.

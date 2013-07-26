@@ -10,8 +10,7 @@
 ########################################################################
 
 package Object::Trampoline;
-
-use strict;
+use v5.12;
 
 use Carp;
 
@@ -19,7 +18,7 @@ use Carp;
 # package variables
 ########################################################################
 
-our $VERSION    = "1.26";
+our $VERSION    = v1.28;
 
 # minimal sanity check for valid class name, used in both
 # O::T and O::T::U.
@@ -53,29 +52,18 @@ our $AUTOLOAD = '';
 
 AUTOLOAD
 {
-    # discard this class name
+    # discard this class: once here it is used up.
+    # lacking a prototype is fatal; anything else becomes
+    # a run-time error.
 
-    shift;
+    my ( undef, $proto, @argz ) = @_;
 
-    # quick santy check: does the class look at least
-    # minimally useful?
-
-    my $class   = shift
-    or croak "Object::Trampoline: class is false.";
-
-    $class =~ $pkg_rx
-    or croak "Bogus Object::Trampoline: '$class' is invalid classname.";
-
-    # if so, then snag the args for future use, 
-    # figure out what the original constructor 
-    # was called, and push it all off until
-    # necessary.
-
-    my @argz    = @_;
+    $proto
+    or croak "Object::Trampoline: prototype is false.";
 
     my $const   = ( split /::/, $AUTOLOAD )[ -1 ];
 
-    my $sub     = sub { $class->$const( @argz ) };
+    my $sub     = sub { $proto->$const( @argz ) };
 
     bless $sub, 'Object::Trampoline::Bounce'
 }
@@ -88,8 +76,7 @@ AUTOLOAD
 ########################################################################
 
 package Object::Trampoline::Use;
-
-use strict;
+use v5.12;
 
 use Carp;
 
@@ -111,31 +98,19 @@ AUTOLOAD
     # has to put using the module into the caller's
     # class before calling the constructor.
 
-    shift;
+    my ( undef, $proto, @argz ) = @_;
 
-    my $class   = shift
-    or croak "Object::Trampoline: class is false.";
+    $proto
+    or croak "Object::Trampoline::Use: prototype is false.";
 
-    # quick santy check: does the class look at least
-    # minimally useful?
-
-    $class =~ $pkg_rx
-    or croak "Bogus Object::Trampoline: '$class' is invalid classname.";
-
-    my @argz    = @_;
-
-    my $const = ( split /::/, $AUTOLOAD )[ -1 ];
-
-    my $caller = caller;
+    my $const   = ( split /::/, $AUTOLOAD )[ -1 ];
+    my $caller  = caller;
 
     my $sanity
     = qq
     {
         package $caller;
-
-        use $class;
-
-        1
+        use $proto
     };
 
     my $sub =
@@ -144,7 +119,7 @@ AUTOLOAD
         eval "$sanity"
         or croak "Failed: $sanity\n$@";
         
-        $class->$const( @argz )
+        $proto->$const( @argz )
     };
 
     bless $sub, 'Object::Trampoline::Bounce'
@@ -174,7 +149,7 @@ AUTOLOAD
 
 package Object::Trampoline::Bounce;
 
-use strict;
+use v5.12;
 
 use Carp;
 
@@ -186,11 +161,10 @@ our $AUTOLOAD = '';
 
 AUTOLOAD
 {
+    # caller gets back any execption as-is.
+
     $_[0]   = $_[0]->()
     or croak "Failed constructor";
-
-    # oddity in 5.10.0 leaves $_[0] undef in blessed
-    # at this point. 
 
     my $class   = blessed $_[0]
     or croak "Failed constructor: '$_[0]' not blessed";
@@ -203,11 +177,20 @@ AUTOLOAD
     }
     else
     {
+        # deal with autoloaded methods, or die trying...
+
         my $obj = shift;
 
         $obj->$method( @_ )
     }
 }
+
+# re-route methods from UNIVERSAL through the bounce.
+
+*DOES       = \&AUTOLOAD;
+*VERSION    = \&AUTOLOAD;
+*can        = \&AUTOLOAD;
+*isa        = \&AUTOLOAD;
 
 # stub destroy dodges AUTOLOAD for unused trampolines.
 
@@ -227,19 +210,22 @@ simplifies runtime definition of handler classes.
 
 =head1 SYNOPSIS
 
-    # adding "use_class" will perform an "eval use $class"
-    # at the point where the object is first accessed.
-
     use Object::Trampoline;
 
     # the real class name is added to the normal constructor
     # and 'Object::Trampoline' used instead. the destination
     # class' constructor is called when object is actually 
     # used for something.
+    #
+    # The database handle is what you'd normally expect, but
+    # the statement handle is a trampoline: it gets constructed 
+    # on the first call via $sth->....
 
-    my $dbh = Object::Trampoline->connect( 'DBI', $dsn, $user, $pass, $conf );
-
-    my $sth = $dbh->prepare( 'select foo from bar' );
+    my $dbh = DBI->connect( ... );
+    my $sth = Object::Trampoline->prepare
+    (
+        $dbh, 'select foo from bar'
+    );
 
     # or specify the package and args from a config file
     # or via inherited data.
@@ -269,6 +255,8 @@ simplifies runtime definition of handler classes.
 
     my $result = $lazy->susan( 'spin_me' );
 
+    # Note: isa and can are overloaded. Calling $lazy->isa will
+    # convert the object and return the corret type.
 
 =head1 DESCRIPTION
 
@@ -294,26 +282,20 @@ Object::Trampoline uses whatever constructor the destination
 class calls (e.g., 'connect' for DBI) with the destination class
 is passed as the first argument.
 
-For example the normal DBI construcion:
+For example the normal DBI statement handle construcion becomes:
 
     my $dbh = DBI->connect( $dsn, $user, $pass, $conf );
 
-becomes:
+    my $sth = Object::Trampoline->prepare
+    (
+        "select ..."
+    );
 
-    my $dbh = Object::Trampoline->connect( 'DBI', $dsn, $user, $pass, $conf );
-
-eventually follwed by some use of the $dbh:
-
-    # at this point ref $dbh is "Object::Trampline::Bounce"
+    # at this point blessed $sth is "Object::Trampline::Bounce"
 
     my $sth = $dbh->prepare( 'select foo from bar' );
 
-    # at this point ref $dbh is "DBI::db"
-
-This can be handy for error or other special event handlers
-they are not always used -- especially if they have to read
-initialization files or make database/directory service 
-connections to get their setup data.
+    # at this point ref $dbh the statement handle.
 
 =head2 Runtime classes
 
@@ -323,8 +305,8 @@ class is passed as an argument. If various handler
 classes share a constructor name then the first argument
 to Object::Trampoline can be determined at runtime:
 
-    my $mailclass = $cmdline->{ mailer } || 'SMTP::Simple';
-    my $mailconst = $cmdline->{ constructor } || 'constructify';
+    my $mailclass = $cmdline->{ mailer }        || 'SMTP::Simple';
+    my $mailconst = $cmdline->{ constructor }   || 'constructify';
 
     ...
 
